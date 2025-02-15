@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useChat } from "../hooks/useChat";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function Home() {
     const { messages, isLoading, error, sendMessage } = useChat();
@@ -16,43 +17,45 @@ export default function Home() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col p-4 max-w-2xl mx-auto">
-            <header className="py-4 border-b">
+        <div className="flex flex-col h-screen">
+            <header className="border-b p-4">
                 <h1 className="text-xl font-bold">Medical Chat Bot</h1>
             </header>
 
-            <div className="flex-1 py-4 space-y-4 overflow-y-auto">
-                {messages.map((message) => (
-                    <div
-                        key={message.id}
-                        className={`flex items-start gap-2.5 ${
-                            message.role === "user" ? "justify-end" : ""
-                        }`}
-                    >
+            <ScrollArea className="flex-1 p-4">
+                <div className="space-y-4">
+                    {messages.map((message) => (
                         <div
-                            className={`rounded-lg p-3 max-w-[80%] ${
-                                message.role === "user"
-                                    ? "bg-blue-500 text-white"
-                                    : "bg-gray-100"
+                            key={message.id}
+                            className={`flex items-start gap-2.5 ${
+                                message.role === "user" ? "justify-end" : ""
                             }`}
                         >
-                            <p className="text-sm">{message.content}</p>
+                            <div
+                                className={`rounded-lg p-3 max-w-[80%] ${
+                                    message.role === "user"
+                                        ? "bg-blue-500 text-white"
+                                        : "bg-gray-100"
+                                }`}
+                            >
+                                <p className="text-sm">{message.content}</p>
+                            </div>
                         </div>
-                    </div>
-                ))}
-                {isLoading && (
-                    <div className="flex items-start gap-2.5">
-                        <div className="bg-gray-100 rounded-lg p-3">
-                            <p className="text-sm">Typing...</p>
+                    ))}
+                    {isLoading && (
+                        <div className="flex items-start gap-2.5">
+                            <div className="bg-gray-100 rounded-lg p-3">
+                                <p className="text-sm">Typing...</p>
+                            </div>
                         </div>
-                    </div>
-                )}
-                {error && (
-                    <div className="text-red-500 text-sm text-center">
-                        {error}
-                    </div>
-                )}
-            </div>
+                    )}
+                    {error && (
+                        <div className="text-red-500 text-sm text-center">
+                            {error}
+                        </div>
+                    )}
+                </div>
+            </ScrollArea>
 
             <div className="border-t p-4">
                 <form onSubmit={handleSubmit} className="flex gap-2">
