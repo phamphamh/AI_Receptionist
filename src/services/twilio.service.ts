@@ -1,5 +1,6 @@
-import { twilioClient, twilioPhoneNumber } from "../config/twilio";
+import { twilioClient } from "../config/twilio";
 import { getMistralResponse } from "../config/mistral";
+import { sessionManager } from "../lib/history";
 
 export const handleMessage = async (
     messageBody: string,
@@ -7,40 +8,41 @@ export const handleMessage = async (
     To: string
 ): Promise<string> => {
     try {
-        const aiResponse = await getMistralResponse(From, messageBody);
-        // console.log("Réponse IA:", aiResponse);
-
-        // console.log("Configuration Twilio:", {
-        //     destinationNumber: From,
-        //     messageBody: aiResponse,
-        // });
-
-        // envoyer la reponse via whatsApp
-        console.log("TEST: ", aiResponse, From, To);
-
-        if (aiResponse === "Appointment set successfully") {
-            const message = await twilioClient.messages.create({
-                contentSid: "HX7dba1e0e532b799f99d4bd895c9b56a0",
-                contentVariables: JSON.stringify({
-                    1: "Dr. test123",
-                    2: "21/02/2025",
-                }),
-                from: To,
-                to: From,
-            });
-
-            console.log("Message envoyé avec succès:", message.sid);
-        } else {
-            const message = await twilioClient.messages.create({
-                body: aiResponse,
-                from: To,
-                to: From,
-            });
-            console.log("Message envoyé avec succès:", message.sid);
+        if (!sessionManager.hasActiveSession(From)) {
+            sessionManager.startNewSession(From);
         }
-        return "Message traité avec succès";
+
+        sessionManager.addMessage(From, messageBody, "user");
+
+        const aiResponse = await getMistralResponse(From, messageBody);
+
+        sessionManager.addMessage(From, aiResponse.message, "bot");
+
+        const message = await twilioClient.messages.create({
+            body: aiResponse.message,
+            from: To,
+            to: From,
+        });
+
+        console.log("Message sent successfully:", message.sid);
+
+        if (
+            aiResponse.action === "confirm_appointment" &&
+            aiResponse.suggested_appointment
+        ) {
+            sessionManager.confirmAppointment(From, {
+                doctorName: aiResponse.suggested_appointment.doctorName,
+                location: aiResponse.suggested_appointment.location,
+                datetime: new Date(aiResponse.suggested_appointment.datetime),
+                specialistType: aiResponse.suggested_appointment.specialistType,
+            });
+        } else if (aiResponse.action === "decline_appointment") {
+            sessionManager.endSession(From);
+        }
+
+        return "Message processed successfully";
     } catch (error) {
-        console.error("Erreur lors de l'envoi du message:", error);
+        console.error("Error sending message:", error);
         throw error;
     }
 };

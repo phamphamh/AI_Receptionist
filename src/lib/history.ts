@@ -13,10 +13,19 @@ interface DateRange {
 }
 
 interface AppointmentDetails {
-    medicalDomain?: string;
-    preferredDates?: DateRange;
-    acceptedDate?: Date;
-    preferredTimeOfDay?: "morning" | "afternoon" | "evening";
+    location?: string;
+    specialistType?: string;
+    dateRange?: {
+        startDate: string;
+        endDate: string;
+    };
+    suggestedAppointment?: {
+        doctorName: string;
+        location: string;
+        datetime: Date;
+    };
+    status: "collecting_info" | "suggested" | "confirmed" | "cancelled";
+    missingFields?: string[];
 }
 
 interface Conversation {
@@ -26,149 +35,153 @@ interface Conversation {
     appointmentDetails: AppointmentDetails;
 }
 
-class HistoryTracker {
-    private users: Map<string, Conversation[]>;
-    private activeConversations: Map<string, Conversation>;
-    private userInfo: Map<string, UserInfo>;
+interface Message {
+    content: string;
+    sender: "user" | "bot";
+    timestamp: Date;
+}
+
+interface AppointmentInfo {
+    location?: string;
+    specialistType?: string;
+    dateRange?: {
+        startDate: string;
+        endDate: string;
+    };
+    missingFields: string[];
+}
+
+interface ConfirmedAppointment {
+    doctorName: string;
+    location: string;
+    datetime: Date;
+    specialistType: string;
+    status: "scheduled" | "cancelled" | "completed";
+}
+
+interface UserSession {
+    id: string;
+    phoneNumber: string;
+    startedAt: Date;
+    endedAt?: Date;
+    messages: Message[];
+    appointmentInfo: AppointmentInfo;
+    confirmedAppointment?: ConfirmedAppointment;
+}
+
+class SessionManager {
+    private activeSessions: Map<string, UserSession>; // phoneNumber -> session
+    private sessionHistory: UserSession[]; // Completed sessions
 
     constructor() {
-        this.users = new Map();
-        this.activeConversations = new Map();
-        this.userInfo = new Map();
+        this.activeSessions = new Map();
+        this.sessionHistory = [];
     }
 
-    public addUser(info: UserInfo): void {
-        this.userInfo.set(info.phoneNumber, info);
-        if (!this.users.has(info.phoneNumber)) {
-            this.users.set(info.phoneNumber, []);
-        }
+    public startNewSession(phoneNumber: string): UserSession {
+        const session: UserSession = {
+            id: crypto.randomUUID(),
+            phoneNumber,
+            startedAt: new Date(),
+            messages: [],
+            appointmentInfo: {
+                missingFields: ["location", "specialistType", "dateRange"],
+            },
+        };
+        this.activeSessions.set(phoneNumber, session);
+        return session;
     }
 
-    public updateUserInfo(phoneNumber: string, info: Partial<UserInfo>): void {
-        const existingInfo = this.userInfo.get(phoneNumber) || { phoneNumber };
-        this.userInfo.set(phoneNumber, { ...existingInfo, ...info });
-    }
-
-    public addMessage(phoneNumber: string, message: string): void {
-        // create user history if it doesn't exist
-        if (!this.users.has(phoneNumber)) {
-            this.users.set(phoneNumber, []);
-        }
-
-        // create new conversation if user doesn't have an active one
-        if (!this.activeConversations.has(phoneNumber)) {
-            const newConversation: Conversation = {
-                messages: [],
-                startedAt: new Date(),
-                appointmentDetails: {},
-            };
-            this.activeConversations.set(phoneNumber, newConversation);
-        }
-
-        // add message to active conversation
-        const conversation = this.activeConversations.get(phoneNumber)!;
-        conversation.messages.push(message);
-    }
-
-    public updateAppointmentDetails(
+    public addMessage(
         phoneNumber: string,
-        details: Partial<AppointmentDetails>
+        content: string,
+        sender: "user" | "bot"
     ): void {
-        const conversation = this.activeConversations.get(phoneNumber);
-        if (conversation) {
-            conversation.appointmentDetails = {
-                ...conversation.appointmentDetails,
-                ...details,
-            };
+        let session = this.activeSessions.get(phoneNumber);
+        if (!session) {
+            session = this.startNewSession(phoneNumber);
         }
+
+        session.messages.push({
+            content,
+            sender,
+            timestamp: new Date(),
+        });
     }
 
-    public endConversation(
+    public updateAppointmentInfo(
         phoneNumber: string,
-        appointmentAccepted: boolean,
-        appointmentTracker: AppointmentTracker
+        info: Partial<AppointmentInfo>
     ): void {
-        const activeConversation = this.activeConversations.get(phoneNumber);
-        if (activeConversation) {
-            activeConversation.endedAt = new Date();
+        const session = this.activeSessions.get(phoneNumber);
+        if (session) {
+            // Update appointment info
+            session.appointmentInfo = {
+                ...session.appointmentInfo,
+                ...info,
+            };
 
-            // if appointment was accepted, create it in the appointment tracker
-            if (
-                appointmentAccepted &&
-                activeConversation.appointmentDetails.acceptedDate &&
-                activeConversation.appointmentDetails.medicalDomain
-            ) {
-                appointmentTracker.addAppointment({
-                    phoneNumber,
-                    date: activeConversation.appointmentDetails.acceptedDate,
-                    medicalDomain:
-                        activeConversation.appointmentDetails.medicalDomain,
-                    status: "scheduled",
-                });
-            }
+            // Update missing fields
+            const missingFields: string[] = [];
+            if (!session.appointmentInfo.location)
+                missingFields.push("location");
+            if (!session.appointmentInfo.specialistType)
+                missingFields.push("specialistType");
+            if (!session.appointmentInfo.dateRange)
+                missingFields.push("dateRange");
 
-            // save to user's history
-            const userHistory = this.users.get(phoneNumber)!;
-            userHistory.push(activeConversation);
-
-            // remove from active conversations
-            this.activeConversations.delete(phoneNumber);
+            session.appointmentInfo.missingFields = missingFields;
         }
     }
 
-    public getUserInfo(phoneNumber: string): UserInfo | undefined {
-        return this.userInfo.get(phoneNumber);
+    public confirmAppointment(
+        phoneNumber: string,
+        appointment: Omit<ConfirmedAppointment, "status">
+    ): void {
+        const session = this.activeSessions.get(phoneNumber);
+        if (session) {
+            session.confirmedAppointment = {
+                ...appointment,
+                status: "scheduled",
+            };
+            this.endSession(phoneNumber);
+        }
     }
 
-    public getUserHistory(phoneNumber: string): Conversation[] {
-        return this.users.get(phoneNumber) || [];
+    public endSession(phoneNumber: string): void {
+        const session = this.activeSessions.get(phoneNumber);
+        if (session) {
+            session.endedAt = new Date();
+            this.sessionHistory.push(session);
+            this.activeSessions.delete(phoneNumber);
+        }
     }
 
-    public getCurrentConversation(
-        phoneNumber: string
-    ): Conversation | undefined {
-        return this.activeConversations.get(phoneNumber);
+    public getActiveSession(phoneNumber: string): UserSession | undefined {
+        return this.activeSessions.get(phoneNumber);
     }
 
-    public hasActiveConversation(phoneNumber: string): boolean {
-        return this.activeConversations.has(phoneNumber);
+    public isReadyForSuggestion(phoneNumber: string): boolean {
+        const session = this.activeSessions.get(phoneNumber);
+        return session?.appointmentInfo.missingFields.length === 0 || false;
+    }
+
+    public getMissingFields(phoneNumber: string): string[] {
+        return (
+            this.activeSessions.get(phoneNumber)?.appointmentInfo
+                .missingFields || []
+        );
+    }
+
+    public getUserHistory(phoneNumber: string): UserSession[] {
+        return this.sessionHistory.filter(
+            (session) => session.phoneNumber === phoneNumber
+        );
+    }
+
+    public hasActiveSession(phoneNumber: string): boolean {
+        return this.activeSessions.has(phoneNumber);
     }
 }
 
-// // usage example:
-// const history = new HistoryTracker();
-
-// // add a new user
-// history.addUser({
-//     phoneNumber: "+1234567890",
-//     location: "Paris",
-//     age: 35,
-//     preferredLanguage: "french",
-// });
-
-// // start conversation and update appointment details as they come
-// history.addMessage(
-//     "+1234567890",
-//     "Bonjour, je voudrais prendre un rendez-vous en dermatologie"
-// );
-
-// history.updateAppointmentDetails("+1234567890", {
-//     medicalDomain: "dermatology",
-//     preferredDates: {
-//         start: new Date("2025-02-20"),
-//         end: new Date("2025-02-28"),
-//     },
-//     preferredTimeOfDay: "morning",
-// });
-
-// history.addMessage("+1234567890", "Je préfère un rendez-vous le matin");
-
-// // when appointment is accepted
-// history.updateAppointmentDetails("+1234567890", {
-//     acceptedDate: new Date("2025-02-22T09:30:00"),
-// });
-
-// // end conversation with accepted appointment
-// history.endConversation("+1234567890", true);
-
-export default HistoryTracker;
+export const sessionManager = new SessionManager();
