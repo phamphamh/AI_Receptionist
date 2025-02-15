@@ -7,7 +7,7 @@ export const handleMessage = async (
     To: string
 ): Promise<string> => {
     try {
-        const aiResponse = await getMistralResponse(messageBody);
+        const aiResponse = await getMistralResponse(From, messageBody);
         console.log("Réponse IA:", aiResponse);
 
         console.log("Configuration Twilio:", {

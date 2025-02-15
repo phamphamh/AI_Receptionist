@@ -1,58 +1,52 @@
-import dotenv from 'dotenv';
-import fetch from 'node-fetch';
+import dotenv from "dotenv";
+import { Mistral } from "@mistralai/mistralai";
+import { tracker } from "../app";
 
 dotenv.config();
 
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
-const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
 
 if (!MISTRAL_API_KEY) {
-  throw new Error('Missing Mistral API configuration');
+    throw new Error("Missing Mistral API configuration");
 }
 
-interface MistralResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
+const client = new Mistral({
+    apiKey: MISTRAL_API_KEY,
+});
 
-export const getMistralResponse = async (message: string): Promise<string> => {
-  try {
-    const response = await fetch(MISTRAL_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MISTRAL_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'mistral-tiny',
-        messages: [
-          {
-            role: 'system',
-            content: 'Vous êtes un assistant virtuel professionnel et sympathique. Répondez de manière concise et utile.'
-          },
-          {
-            role: 'user',
-            content: message
-          }
-        ],
-        max_tokens: 150
-      })
-    });
+export const getMistralResponse = async (
+    from: string,
+    message: string
+): Promise<string> => {
+    try {
+        const chatResponse = await client.chat.complete({
+            model: "mistral-tiny",
+            messages: [
+                {
+                    role: "system",
+                    content:
+                        "You are HeyDoc, a professional and friendly virtual healthcare assistant. \
+                        Your responses should be warm yet efficient, \
+                        focusing on helping users schedule medical \
+                        appointments and navigate healthcare services.",
+                },
+                ...(tracker
+                    .getCurrentConversation(from)
+                    ?.messages.map((msg) => ({
+                        role: "user" as const,
+                        content: msg,
+                    })) || []),
+            ],
+            maxTokens: 150,
+        });
 
-    if (!response.ok) {
-      throw new Error(`Erreur API Mistral: ${response.status}`);
+        if (chatResponse.choices && chatResponse.choices.length > 0) {
+            return String(chatResponse.choices[0].message.content);
+        } else {
+            throw new Error("No response from Mistral API");
+        }
+    } catch (error) {
+        console.error("Erreur lors de l'appel à Mistral API:", error);
+        return "Désolé, je rencontre des difficultés techniques. Veuillez réessayer plus tard.";
     }
-
-    const data = await response.json() as MistralResponse;
-    return data.choices[0].message.content;
-  } catch (error) {
-    console.error('Erreur lors de l\'appel à Mistral API:', error);
-    return 'Désolé, je rencontre des difficultés techniques. Veuillez réessayer plus tard.';
-  }
 };
-
-// Modèle par défaut pour notre assistant médical
-export const DEFAULT_MODEL = 'mistral-medium'; 
