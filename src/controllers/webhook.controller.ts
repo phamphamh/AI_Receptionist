@@ -1,21 +1,14 @@
 import { Request, Response } from 'express';
-import { WhatsAppService } from '../services/whatsapp.service';
+import { twilioClient } from '../config/twilio';
+import { handleMessage } from '../services/twilio.service';
 
-export class WebhookController {
-  static async handleWebhook(req: Request, res: Response) {
-    try {
-      const response = await WhatsAppService.handleIncomingMessage(req.body);
-      res.json(response);
-    } catch (error) {
-      console.error('Webhook error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
-    }
+export const handleIncomingMessage = async (req: Request, res: Response) => {
+  try {
+    const { Body, From } = req.body;
+    const response = await handleMessage(Body, From);
+    res.status(200).send(response);
+  } catch (error) {
+    console.error('Erreur lors du traitement du message:', error);
+    res.status(500).send('Erreur interne du serveur');
   }
-
-  static async healthCheck(req: Request, res: Response) {
-    res.json({ status: 'healthy' });
-  }
-} 
+}; 

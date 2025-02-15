@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { WebhookController } from '../controllers/webhook.controller';
+import { handleIncomingMessage } from '../controllers/webhook.controller';
 
 const router = Router();
 
-router.post('/webhook', WebhookController.handleWebhook);
-router.get('/webhook/health', WebhookController.healthCheck);
+// Route pour les messages SMS entrants
+router.post('/sms', handleIncomingMessage);
 
 export default router; 
