@@ -1,11 +1,21 @@
 import { twilioClient, twilioPhoneNumber } from '../config/twilio';
+import { getMistralResponse } from '../config/mistral';
 
 export const handleMessage = async (messageBody: string, from: string): Promise<string> => {
   try {
-    // Envoyer une réponse via SMS
+    // Obtenir la réponse de l'IA
+    console.log('Message reçu:', messageBody);
+    const aiResponse = await getMistralResponse(messageBody);
+    console.log('Réponse IA:', aiResponse);
+
+    // Utiliser le numéro WhatsApp sandbox de Twilio
+    const twilioWhatsAppSandbox = 'whatsapp:+14155238886';
+    console.log('Envoi depuis:', twilioWhatsAppSandbox, 'vers:', from);
+
+    // Envoyer la réponse via WhatsApp
     await twilioClient.messages.create({
-      body: `Merci pour votre message: "${messageBody}". Notre assistant va vous répondre bientôt.`,
-      from: twilioPhoneNumber,
+      body: aiResponse,
+      from: twilioWhatsAppSandbox,
       to: from
     });
 
