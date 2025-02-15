@@ -5,10 +5,10 @@ import { tracker } from "../app";
 
 export const handleIncomingMessage = async (req: Request, res: Response) => {
     try {
-        console.log(
-            "Requête complète reçue:",
-            JSON.stringify(req.body, null, 2)
-        );
+        // console.log(
+        //     "Requête complète reçue:",
+        //     JSON.stringify(req.body, null, 2)
+        // );
         const { Body, From, To } = req.body;
 
         tracker.addMessage(From, Body);

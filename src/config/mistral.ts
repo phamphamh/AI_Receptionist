@@ -37,8 +37,71 @@ export const getMistralResponse = async (
                         content: msg,
                     })) || []),
             ],
+            tools: [
+                {
+                    function: {
+                        name: "setAppointment",
+                        description: "Set an appointment",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                phoneNumber: {
+                                    type: "string",
+                                    description: "The user's phone number",
+                                },
+                                date: {
+                                    type: "string",
+                                    description: "The appointment date",
+                                },
+                                medicalDomain: {
+                                    type: "string",
+                                    description: "The medical domain",
+                                },
+                                status: {
+                                    type: "string",
+                                    description: "The appointment status",
+                                },
+                            },
+                            required: ["phoneNumber", "date", "medicalDomain"],
+                        },
+                    },
+                },
+            ],
+            toolChoice: "auto",
             maxTokens: 150,
         });
+
+        const invokeTool = !!chatResponse.choices![0].message.toolCalls?.length;
+        const toolCall =
+            invokeTool && chatResponse.choices![0].message.toolCalls![0];
+
+        // if (chatResponse.choices) {
+        //     console.log(
+        //         "CHAT RESPONSE",
+        //         chatResponse.choices[0],
+        //         chatResponse.choices[0].message.toolCalls?.[0]
+        //     );
+        // }
+
+        if (invokeTool) {
+            console.log("TOOL CALL", toolCall);
+            if (toolCall) {
+                const toolName = toolCall.function.name;
+                if (toolName === "setAppointment") {
+                    const { phoneNumber, date, medicalDomain, status } =
+                        toolCall.function.arguments as any;
+                    console.log(
+                        "HELLLLLOOOOOOO",
+                        phoneNumber,
+                        date,
+                        medicalDomain,
+                        status
+                    );
+                }
+            }
+
+            return "Appointment set successfully";
+        }
 
         if (chatResponse.choices && chatResponse.choices.length > 0) {
             return String(chatResponse.choices[0].message.content);
