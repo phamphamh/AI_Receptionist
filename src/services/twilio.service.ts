@@ -8,17 +8,20 @@ export const handleMessage = async (messageBody: string, from: string): Promise<
     const aiResponse = await getMistralResponse(messageBody);
     console.log('Réponse IA:', aiResponse);
 
-    // Utiliser le numéro WhatsApp sandbox de Twilio
-    const twilioWhatsAppSandbox = 'whatsapp:+14155238886';
-    console.log('Envoi depuis:', twilioWhatsAppSandbox, 'vers:', from);
+    console.log('Configuration Twilio:', {
+      twilioPhoneNumber,
+      destinationNumber: from,
+      messageBody: aiResponse
+    });
 
     // Envoyer la réponse via WhatsApp
-    await twilioClient.messages.create({
+    const message = await twilioClient.messages.create({
       body: aiResponse,
-      from: twilioWhatsAppSandbox,
+      from: twilioPhoneNumber, // Utilisation directe de la variable d'environnement
       to: from
     });
 
+    console.log('Message envoyé avec succès:', message.sid);
     return 'Message traité avec succès';
   } catch (error) {
     console.error('Erreur lors de l\'envoi du message:', error);
