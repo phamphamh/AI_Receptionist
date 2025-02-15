@@ -1,5 +1,5 @@
-import twilio from 'twilio';
-import dotenv from 'dotenv';
+import twilio from "twilio";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -8,8 +8,8 @@ const authToken = process.env.TWILIO_AUTH_TOKEN;
 const phoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
 if (!accountSid || !authToken || !phoneNumber) {
-  throw new Error('Missing Twilio configuration');
+    throw new Error("Missing Twilio configuration");
 }
 
 export const twilioClient = twilio(accountSid, authToken);
-export const twilioPhoneNumber = phoneNumber; 
+export const twilioPhoneNumber = `whatsapp:${phoneNumber}`;
