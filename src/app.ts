@@ -1,6 +1,7 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import webhookRoutes from './routes/webhook.routes';
+import express from "express";
+import dotenv from "dotenv";
+import webhookRoutes from "./routes/webhook.routes";
+import HistoryTracker from "./lib/history";
 
 dotenv.config();
 
@@ -11,8 +12,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api', webhookRoutes);
+
+export const tracker = new HistoryTracker();
+
+app.use("/api", webhookRoutes);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-}); 
+    console.log(`Server is running on port ${PORT}`);
+});
