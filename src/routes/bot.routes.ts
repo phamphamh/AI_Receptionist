@@ -1,8 +1,21 @@
 import express from "express";
-import { handleDirectMessage } from "../controllers/bot.controller";
+import fileUpload from "express-fileupload";
+import {
+    handleDirectMessage,
+    handleAudioMessage,
+} from "../controllers/bot.controller";
 
 const router = express.Router();
 
-router.post("/chat", handleDirectMessage);
+router.use(
+    fileUpload({
+        limits: { fileSize: 10 * 1024 * 1024 },
+        abortOnLimit: true,
+        createParentPath: true,
+    })
+);
+
+router.post("/message", handleDirectMessage);
+router.post("/audio", handleAudioMessage);
 
 export default router;

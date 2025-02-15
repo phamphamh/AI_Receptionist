@@ -1,46 +1,51 @@
-import { useState, useCallback } from "react";
-import { Message, ChatState } from "../types/chat";
+import { useState } from "react";
 
-const INITIAL_STATE: ChatState = {
-    messages: [
-        {
-            id: "1",
-            content: "Hello! How can I help you today?",
-            role: "bot",
-            timestamp: new Date(),
-        },
-    ],
-    isLoading: false,
-    error: null,
-};
+interface Message {
+    id: string;
+    content: string;
+    role: "user" | "bot";
+}
 
-export function useChat() {
-    const [state, setState] = useState<ChatState>(INITIAL_STATE);
+interface SuggestedAppointment {
+    doctorName: string;
+    location: string;
+    datetime: string;
+    specialistType: string;
+}
 
-    const sendMessage = useCallback(async (content: string) => {
+interface ChatResponse {
+    message: string;
+    action?: string;
+    suggested_appointment?: SuggestedAppointment;
+    transcription?: string;
+}
+
+export const useChat = () => {
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const addMessage = (content: string, role: "user" | "bot") => {
+        setMessages((prev) => [
+            ...prev,
+            { id: Date.now().toString(), content, role },
+        ]);
+    };
+
+    const sendMessage = async (message: string) => {
+        setIsLoading(true);
+        setError(null);
+        addMessage(message, "user");
+
         try {
-            const userMessage: Message = {
-                id: Date.now().toString(),
-                content,
-                role: "user",
-                timestamp: new Date(),
-            };
-
-            setState((prev) => ({
-                ...prev,
-                messages: [...prev.messages, userMessage],
-                isLoading: true,
-                error: null,
-            }));
-
-            const response = await fetch("/api/bot/chat", {
+            const response = await fetch("/api/bot/message", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    message: content,
-                    userId: "test-user-id",
+                    message,
+                    userId: "user123", // Replace with actual user ID management
                 }),
             });
 
@@ -48,33 +53,56 @@ export function useChat() {
                 throw new Error("Failed to send message");
             }
 
-            const data = await response.json();
-
-            const botMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                content: data.message,
-                role: "bot",
-                timestamp: new Date(),
-            };
-
-            setState((prev) => ({
-                ...prev,
-                messages: [...prev.messages, botMessage],
-                isLoading: false,
-            }));
-        } catch {
-            setState((prev) => ({
-                ...prev,
-                isLoading: false,
-                error: "Failed to send message",
-            }));
+            const data: ChatResponse = await response.json();
+            addMessage(data.message, "bot");
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Failed to send message"
+            );
+            console.error("Error sending message:", err);
+        } finally {
+            setIsLoading(false);
         }
-    }, []);
+    };
+
+    const sendAudioMessage = async (formData: FormData) => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch("/api/bot/audio", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to send audio message");
+            }
+
+            const data: ChatResponse = await response.json();
+
+            if (data.transcription) {
+                addMessage(data.transcription, "user");
+            }
+
+            addMessage(data.message, "bot");
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to send audio message"
+            );
+            console.error("Error sending audio message:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return {
-        messages: state.messages,
-        isLoading: state.isLoading,
-        error: state.error,
+        messages,
+        isLoading,
+        error,
         sendMessage,
+        sendAudioMessage,
     };
-}
+};

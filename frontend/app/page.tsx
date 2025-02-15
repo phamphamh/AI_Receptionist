@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useRef } from "react";
 import { useChat } from "../hooks/useChat";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Mic, MicOff, Send } from "lucide-react";
 
 export default function Home() {
-    const { messages, isLoading, error, sendMessage } = useChat();
+    const { messages, isLoading, error, sendMessage, sendAudioMessage } =
+        useChat();
     const [inputMessage, setInputMessage] = useState("");
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -14,6 +20,57 @@ export default function Home() {
 
         await sendMessage(inputMessage);
         setInputMessage("");
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            chunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunksRef.current.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(chunksRef.current, {
+                    type: "audio/webm",
+                });
+                await handleAudioUpload(audioBlob);
+
+                stream.getTracks().forEach((track) => track.stop());
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Error accessing microphone:", err);
+            alert(
+                "Error accessing microphone. Please ensure you have granted microphone permissions."
+            );
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+    const handleAudioUpload = async (audioBlob: Blob) => {
+        if (isLoading) return;
+
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "recording.webm");
+        formData.append("userId", "user123");
+
+        await sendAudioMessage(formData);
     };
 
     return (
@@ -65,14 +122,31 @@ export default function Home() {
                         onChange={(e) => setInputMessage(e.target.value)}
                         placeholder="Type your message..."
                         className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={isRecording}
                     />
-                    <button
-                        type="submit"
+                    <Button
+                        type="button"
+                        onClick={isRecording ? stopRecording : startRecording}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                            isRecording
+                                ? "bg-red-500 hover:bg-red-600"
+                                : "bg-gray-500 hover:bg-gray-600"
+                        }`}
                         disabled={isLoading}
+                    >
+                        {isRecording ? (
+                            <MicOff className="h-5 w-5" />
+                        ) : (
+                            <Mic className="h-5 w-5" />
+                        )}
+                    </Button>
+                    <Button
+                        type="submit"
+                        disabled={isLoading || isRecording}
                         className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-300"
                     >
-                        Send
-                    </button>
+                        <Send className="h-5 w-5" />
+                    </Button>
                 </form>
             </div>
         </div>
