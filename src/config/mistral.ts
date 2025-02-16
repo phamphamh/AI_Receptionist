@@ -83,7 +83,7 @@ Guidelines:
 - Handle both structured and unstructured inputs
 - Extract information from casual language
 - If user says "as soon as possible", set dateRange.startDate to today and endDate to 30 days later
-- Support multiple languages (English, French, etc.)
+- Support multiple languages (English, French, etc.) and use the language of the user
 - If information is unclear, ask for clarification
 - Confirm understanding when information is provided
 - Keep responses concise but helpful
