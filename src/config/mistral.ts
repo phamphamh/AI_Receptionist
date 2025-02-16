@@ -227,8 +227,9 @@ Guidelines for medical topics:
             );
 
             if (availableSlots.length > 0) {
-                // Suggest the first slot but mention others
-                const firstSlot = availableSlots[0];
+                const slotsToShow = availableSlots.slice(0, 3);
+                const firstSlot = slotsToShow[0];
+
                 response.action = "suggest_appointment";
                 response.suggested_appointment = {
                     doctorName: firstSlot.doctor.name,
@@ -237,10 +238,9 @@ Guidelines for medical topics:
                     specialistType: firstSlot.doctor.specialty,
                 };
 
-                // Format all available slots for the message
-                const formattedSlots = availableSlots.map((slot) => {
+                const formattedSlots = slotsToShow.map((slot, index) => {
                     const date = new Date(slot.datetime);
-                    return `- Dr. ${slot.doctor.name} in ${
+                    return `${index + 1}. Dr. ${slot.doctor.name} in ${
                         slot.location
                     } on ${date.toLocaleString("fr-FR", {
                         weekday: "long",
@@ -251,9 +251,19 @@ Guidelines for medical topics:
                     })}`;
                 });
 
-                response.message = `I found several available appointments:\n\n${formattedSlots.join(
+                response.message = `I found ${
+                    availableSlots.length > 3
+                        ? "several"
+                        : formattedSlots.length
+                } available appointments. Here are ${
+                    availableSlots.length > 3
+                        ? "the 3 earliest options"
+                        : "all options"
+                }:\n\n${formattedSlots.join(
                     "\n"
-                )}\n\nWould you like to book any of these appointments? If these times don't work for you, I can look for other options.`;
+                )}\n\nWould you like to book any of these appointments? Just let me know which number you prefer (1-${
+                    formattedSlots.length
+                }), or I can look for other options.`;
             } else {
                 const noSlotsMessage = await client.chat.complete({
                     model: "mistral-tiny",

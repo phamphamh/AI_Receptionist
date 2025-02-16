@@ -90,10 +90,12 @@ export function findAvailableTimeSlots(
     startDate: string,
     maxResults: number = 3
 ): TimeSlot[] {
-    const allDoctors: Doctor[] = doctorsData.filter(
-        (d: Doctor) =>
-            d.specialty.toLowerCase() === specialistType.toLowerCase()
-    );
+    const allDoctors: Doctor[] = doctorsData
+        .filter(
+            (d: Doctor) =>
+                d.specialty.toLowerCase() === specialistType.toLowerCase()
+        )
+        .slice(0, 3);
 
     const slots: TimeSlot[] = [];
     const startDateTime = new Date(startDate);
@@ -129,7 +131,7 @@ export function findAvailableTimeSlots(
 
     // If we don't have enough slots, try nearby areas
     if (slots.length < maxResults) {
-        // Get all unique cities from our database except the preferred one
+        const remainingSlots = maxResults - slots.length;
         const nearbyCities = [
             ...new Set(
                 doctorsData
@@ -141,7 +143,7 @@ export function findAvailableTimeSlots(
                                 .includes(preferredLocation.toLowerCase())
                     )
             ),
-        ];
+        ].slice(0, 3);
 
         allDoctors
             .filter((d) =>
@@ -150,6 +152,8 @@ export function findAvailableTimeSlots(
                 )
             )
             .forEach((doctor) => {
+                if (slots.length >= maxResults) return;
+
                 doctor.slots
                     .filter((slot) => {
                         const slotDate = new Date(slot);
@@ -162,7 +166,7 @@ export function findAvailableTimeSlots(
                                 hour <= preferredTime.endHour)
                         );
                     })
-                    .slice(0, maxResults - slots.length)
+                    .slice(0, remainingSlots)
                     .forEach((slot) => {
                         slots.push({
                             doctor,
@@ -173,5 +177,5 @@ export function findAvailableTimeSlots(
             });
     }
 
-    return slots;
+    return slots.slice(0, maxResults);
 }
