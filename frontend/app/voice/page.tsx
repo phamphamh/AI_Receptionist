@@ -7,7 +7,7 @@ import { Mic, MicOff } from "lucide-react";
 import { SoundWave } from "@/components/ui/sound-wave";
 
 export default function VoicePage() {
-    const { isLoading, error, sendAudioMessage, isPlaying } = useChat(true);
+    const { isLoading, error, sendAudioMessage, isPlaying } = useChat();
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);

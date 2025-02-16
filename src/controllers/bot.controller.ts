@@ -50,38 +50,29 @@ export const handleDirectMessage = async (req: Request, res: Response) => {
         }
 
         let speechData: string | null = null;
+        /*
         if (wantsSpeech) {
             try {
                 console.log("\n=== Generating Speech ===");
                 console.log("Text to convert:", aiResponse.message);
 
                 const audioBuffer = await textToSpeech(aiResponse.message);
-                console.log("Audio buffer size:", audioBuffer.length, "bytes");
-
                 const fileName = `${crypto.randomUUID()}.mp3`;
                 const tempDir = path.join(__dirname, "../../temp");
                 const filePath = path.join(tempDir, fileName);
 
-                console.log("Temp directory:", tempDir);
-                console.log("File path:", filePath);
-
                 if (!fs.existsSync(tempDir)) {
-                    console.log("Creating temp directory");
                     fs.mkdirSync(tempDir, { recursive: true });
                 }
 
                 await fs.promises.writeFile(filePath, audioBuffer);
-                const stats = fs.statSync(filePath);
-                console.log("File created successfully");
-                console.log("File size:", stats.size, "bytes");
-
                 speechData = fileName;
-                console.log("Speech file name:", fileName);
             } catch (speechError) {
                 console.error("\n=== Speech Generation Error ===");
                 console.error("Error details:", speechError);
             }
         }
+        */
 
         console.log("\n=== Sending Response ===");
         console.log("Speech data:", speechData);

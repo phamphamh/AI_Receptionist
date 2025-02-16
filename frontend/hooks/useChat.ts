@@ -22,7 +22,7 @@ interface ChatResponse {
     speechFile?: string;
 }
 
-export const useChat = (autoPlayAudio = false) => {
+export const useChat = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export const useChat = (autoPlayAudio = false) => {
                 body: JSON.stringify({
                     message,
                     userId: "user123",
-                    wantsSpeech: true,
+                    wantsSpeech: false,
                 }),
             });
 
@@ -64,10 +64,6 @@ export const useChat = (autoPlayAudio = false) => {
 
             const data: ChatResponse = await response.json();
             addMessage(data.message, "bot", data.speechFile);
-
-            if (data.speechFile) {
-                playAudioResponse(data.speechFile);
-            }
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : "Failed to send message"
@@ -99,10 +95,6 @@ export const useChat = (autoPlayAudio = false) => {
             }
 
             addMessage(data.message, "bot", data.speechFile);
-
-            if (autoPlayAudio && data.speechFile) {
-                await playAudioResponse(data.speechFile);
-            }
         } catch (err) {
             setError(
                 err instanceof Error

@@ -1,7 +1,10 @@
 import dotenv from "dotenv";
 import { Mistral } from "@mistralai/mistralai";
 import { sessionManager } from "../lib/history";
-import { findAvailableAppointment } from "../services/appointment.service";
+import {
+    findAvailableAppointment,
+    findAvailableTimeSlots,
+} from "../services/appointment.service";
 import { AppointmentSearchResult } from "../services/appointment.service";
 
 dotenv.config();
@@ -44,6 +47,34 @@ interface AppointmentContext {
     searchResult: AppointmentSearchResult;
     userLanguage: string;
 }
+
+const parseTimePreferences = (message: string) => {
+    const timePrefs = {
+        startHour: 8,
+        endHour: 18,
+    };
+
+    const timePattern =
+        /(?:from|between|after)?\s*(\d+)\s*(?:am|pm)?\s*(?:to|until|and|-)?\s*(\d+)?\s*(?:am|pm)?/i;
+    const match = message.match(timePattern);
+
+    if (match) {
+        let startHour = parseInt(match[1]);
+        let endHour = match[2] ? parseInt(match[2]) : undefined;
+
+        if (message.toLowerCase().includes("pm") && startHour !== 12) {
+            startHour += 12;
+        }
+        if (endHour && message.toLowerCase().includes("pm") && endHour !== 12) {
+            endHour += 12;
+        }
+
+        timePrefs.startHour = startHour;
+        if (endHour) timePrefs.endHour = endHour;
+    }
+
+    return timePrefs;
+};
 
 export const getMistralResponse = async (
     from: string,
@@ -129,6 +160,8 @@ Guidelines for medical topics:
   * "Would you like me to tell you about the different types of doctors who commonly help with this?"
   * "You're welcome to start with a general practitioner who can guide you further"`;
 
+        const timePrefs = parseTimePreferences(message);
+
         const chatResponse = await client.chat.complete({
             model: "mistral-tiny",
             messages: [
@@ -181,81 +214,69 @@ Guidelines for medical topics:
         }
 
         if (
-            response.action === "suggest_appointment" &&
-            session?.appointmentInfo.location &&
-            session?.appointmentInfo.specialistType &&
-            session?.appointmentInfo.dateRange
+            response.collected_info &&
+            response.collected_info.location &&
+            response.collected_info.specialistType &&
+            response.collected_info.dateRange
         ) {
-            const appointmentResult = await findAvailableAppointment(
-                from,
-                session.appointmentInfo.location,
-                session.appointmentInfo.specialistType,
-                session.appointmentInfo.dateRange.startDate
+            const availableSlots = findAvailableTimeSlots(
+                response.collected_info.specialistType,
+                response.collected_info.location,
+                timePrefs,
+                response.collected_info.dateRange.startDate
             );
 
-            if (appointmentResult.success && appointmentResult.doctor) {
+            if (availableSlots.length > 0) {
+                // Suggest the first slot but mention others
+                const firstSlot = availableSlots[0];
+                response.action = "suggest_appointment";
                 response.suggested_appointment = {
-                    doctorName: appointmentResult.doctor.name,
-                    location:
-                        appointmentResult.location ||
-                        appointmentResult.doctor.city,
-                    datetime: appointmentResult.datetime!,
-                    specialistType: appointmentResult.doctor.specialty,
+                    doctorName: firstSlot.doctor.name,
+                    location: firstSlot.location,
+                    datetime: firstSlot.datetime,
+                    specialistType: firstSlot.doctor.specialty,
                 };
 
-                // Let Mistral generate the appropriate message based on the appointment context
-                const appointmentContext: AppointmentContext = {
-                    searchResult: appointmentResult,
-                    userLanguage: "fr-FR", // You could detect this from user messages
-                };
-
-                const contextMessage = await client.chat.complete({
-                    model: "mistral-tiny",
-                    messages: [
-                        {
-                            role: "system",
-                            content: `You are helping to format an appointment suggestion message.
-                            The message should be friendly and professional.
-                            For teleconsultations, emphasize that it's a video consultation.
-                            For nearby cities, mention that it's in a different city but still accessible.
-                            Ask if the user would like to book the appointment.
-                            Use the user's language (${appointmentContext.userLanguage}).`,
-                        },
-                        {
-                            role: "user",
-                            content: JSON.stringify(appointmentContext),
-                        },
-                    ],
-                    temperature: 0.7,
-                    maxTokens: 150,
+                // Format all available slots for the message
+                const formattedSlots = availableSlots.map((slot) => {
+                    const date = new Date(slot.datetime);
+                    return `- Dr. ${slot.doctor.name} in ${
+                        slot.location
+                    } on ${date.toLocaleString("fr-FR", {
+                        weekday: "long",
+                        month: "long",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })}`;
                 });
 
-                response.message =
-                    contextMessage.choices?.[0]?.message?.content?.toString() ||
-                    "No response generated.";
+                response.message = `I found several available appointments:\n\n${formattedSlots.join(
+                    "\n"
+                )}\n\nWould you like to book any of these appointments? If these times don't work for you, I can look for other options.`;
             } else {
-                response.action = "collect_info";
-
-                // Let Mistral generate the "no appointments found" message
-                const noAppointmentMessage = await client.chat.complete({
+                const noSlotsMessage = await client.chat.complete({
                     model: "mistral-tiny",
                     messages: [
                         {
                             role: "system",
-                            content: `Generate a friendly message explaining that no appointments were found.
-                            Suggest trying different dates or locations.
-                            Use the user's language (${session.messages[0].content.slice(
-                                0,
-                                50
-                            )}).`,
+                            content: `You are a helpful assistant explaining why no appointments were found.
+                                     Be concise and friendly, and offer constructive alternatives.
+                                     Don't mention specific dates unless provided in the user data.
+                                     Focus on time preferences and location options.`,
                         },
                         {
                             role: "user",
                             content: JSON.stringify({
-                                location: session.appointmentInfo.location,
+                                location: response.collected_info.location,
                                 specialistType:
-                                    session.appointmentInfo.specialistType,
-                                dateRange: session.appointmentInfo.dateRange,
+                                    response.collected_info.specialistType,
+                                timePrefs: {
+                                    start: `${timePrefs.startHour}:00`,
+                                    end: timePrefs.endHour
+                                        ? `${timePrefs.endHour}:00`
+                                        : undefined,
+                                },
                             }),
                         },
                     ],
@@ -264,8 +285,8 @@ Guidelines for medical topics:
                 });
 
                 response.message =
-                    noAppointmentMessage.choices?.[0]?.message?.content?.toString() ||
-                    "No appointments found.";
+                    noSlotsMessage.choices?.[0]?.message?.content?.toString() ||
+                    "I couldn't find any available appointments. Would you like to try different options?";
             }
         }
 
