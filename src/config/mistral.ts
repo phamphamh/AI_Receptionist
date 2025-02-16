@@ -60,6 +60,25 @@ Required information to collect:
 
 Current missing information: ${missingFields.join(", ")}
 
+When suggesting appointments, generate culturally appropriate doctor names based on the user's location:
+- For French locations: Generate French names (e.g., Dubois, Laurent, Petit)
+- For Italian locations: Generate Italian names (e.g., Rossi, Ferrari, Conti)
+- For Spanish locations: Generate Spanish names (e.g., García, Rodriguez, López)
+- For German locations: Generate German names (e.g., Schmidt, Weber, Wagner)
+- For other locations: Generate locally appropriate names based on the region
+
+When suggesting an appointment, include a "suggested_appointment" field with a culturally appropriate doctor name:
+{
+    "action": "suggest_appointment",
+    "message": "I found an available appointment...",
+    "suggested_appointment": {
+        "doctorName": "Dr. [culturally appropriate name]",
+        "location": "...",
+        "datetime": "...",
+        "specialistType": "..."
+    }
+}
+
 Conversation flow:
 1. If this is a new conversation, explain the booking process
 2. Collect missing information one by one or all at once if provided
@@ -140,8 +159,9 @@ Guidelines:
         ) {
             response.action = "suggest_appointment";
             response.suggested_appointment = {
-                doctorName: "Dr. Smith", // This would come from your actual doctor matching logic
-                location: "123 Medical Center",
+                doctorName:
+                    response.suggested_appointment?.doctorName || "Dr. Smith", // Use AI generated name or fallback
+                location: session?.appointmentInfo.location || "Medical Center",
                 datetime: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
                 specialistType:
                     session?.appointmentInfo.specialistType || "general",
@@ -159,7 +179,3 @@ Guidelines:
         };
     }
 };
-
-const prompt = `
-Todays date is ${new Date().toLocaleString()}
-Hello there! I'm HeyDoc, your virtual healthcare assistant. How can I help you today?`;
