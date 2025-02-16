@@ -108,9 +108,9 @@ export default function Home() {
 
             <ScrollArea id="chat-container" className="flex-1 p-4">
                 <div className="space-y-4">
-                    {messages.map((message) => (
+                    {messages.map((message, index) => (
                         <div
-                            key={message.id}
+                            key={index}
                             className={`flex items-start gap-2.5 ${
                                 message.role === "user" ? "justify-end" : ""
                             }`}

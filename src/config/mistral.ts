@@ -107,7 +107,9 @@ Guidelines:
 - Confirm understanding when information is provided
 - Keep responses concise but helpful
 - Focus on collecting missing information: ${missingFields.join(", ")}
-- If all information is collected, suggest an appointment`,
+- If all information is collected, suggest an appointment
+- Always use the same language as the user
+`,
                 },
                 ...(session?.messages.map((msg) => ({
                     role: "user" as const,
