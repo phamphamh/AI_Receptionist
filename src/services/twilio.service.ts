@@ -18,13 +18,46 @@ export const handleMessage = async (
 
         sessionManager.addMessage(From, aiResponse.message, "bot");
 
-        const message = await twilioClient.messages.create({
-            body: aiResponse.message,
-            from: To,
-            to: From,
-        });
+        if (
+            aiResponse.action === "suggest_appointment" &&
+            aiResponse.suggested_appointment
+        ) {
+            await twilioClient.messages.create({
+                body: aiResponse.message,
+                persistentAction: [
+                    `geo:48.8584,2.2945|${aiResponse.suggested_appointment.location}`,
+                ],
+                from: To,
+                to: From,
+            });
 
-        console.log("Message sent successfully:", message.sid);
+            const appointmentDate = new Date(
+                aiResponse.suggested_appointment.datetime
+            ).toLocaleString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+
+            await twilioClient.messages.create({
+                contentSid: "HX7dba1e0e532b799f99d4bd895c9b56a0",
+                contentVariables: JSON.stringify({
+                    1: aiResponse.suggested_appointment.doctorName,
+                    2: appointmentDate,
+                }),
+                from: To,
+                to: From,
+            });
+        } else {
+            await twilioClient.messages.create({
+                body: aiResponse.message,
+                from: To,
+                to: From,
+            });
+        }
 
         if (
             aiResponse.action === "confirm_appointment" &&
