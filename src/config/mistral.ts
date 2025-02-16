@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 import { Mistral } from "@mistralai/mistralai";
 import { sessionManager } from "../lib/history";
+import { findAvailableAppointment } from "../services/appointment.service";
+import { AppointmentSearchResult } from "../services/appointment.service";
 
 dotenv.config();
 
@@ -10,7 +12,7 @@ if (!MISTRAL_API_KEY) {
     throw new Error("Missing Mistral API configuration");
 }
 
-const client = new Mistral({
+export const client = new Mistral({
     apiKey: MISTRAL_API_KEY,
 });
 
@@ -36,6 +38,11 @@ interface AIResponse {
         datetime: string;
         specialistType: string;
     };
+}
+
+interface AppointmentContext {
+    searchResult: AppointmentSearchResult;
+    userLanguage: string;
 }
 
 export const getMistralResponse = async (
@@ -135,18 +142,92 @@ Guidelines:
         }
 
         if (
-            response.action === "collect_info" &&
-            sessionManager.isReadyForSuggestion(from)
+            response.action === "suggest_appointment" &&
+            session?.appointmentInfo.location &&
+            session?.appointmentInfo.specialistType &&
+            session?.appointmentInfo.dateRange
         ) {
-            response.action = "suggest_appointment";
-            response.suggested_appointment = {
-                doctorName: "Dr. Smith", // This would come from your actual doctor matching logic
-                location: "123 Medical Center",
-                datetime: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-                specialistType:
-                    session?.appointmentInfo.specialistType || "general",
-            };
-            response.message = `Great! I found an available appointment with ${response.suggested_appointment.doctorName} at ${response.suggested_appointment.location} tomorrow. Would you like me to book this for you?`;
+            const appointmentResult = await findAvailableAppointment(
+                from,
+                session.appointmentInfo.location,
+                session.appointmentInfo.specialistType,
+                session.appointmentInfo.dateRange.startDate
+            );
+
+            if (appointmentResult.success && appointmentResult.doctor) {
+                response.suggested_appointment = {
+                    doctorName: appointmentResult.doctor.name,
+                    location:
+                        appointmentResult.location ||
+                        appointmentResult.doctor.city,
+                    datetime: appointmentResult.datetime!,
+                    specialistType: appointmentResult.doctor.specialty,
+                };
+
+                // Let Mistral generate the appropriate message based on the appointment context
+                const appointmentContext: AppointmentContext = {
+                    searchResult: appointmentResult,
+                    userLanguage: "fr-FR", // You could detect this from user messages
+                };
+
+                const contextMessage = await client.chat.complete({
+                    model: "mistral-tiny",
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are helping to format an appointment suggestion message.
+                            The message should be friendly and professional.
+                            For teleconsultations, emphasize that it's a video consultation.
+                            For nearby cities, mention that it's in a different city but still accessible.
+                            Ask if the user would like to book the appointment.
+                            Use the user's language (${appointmentContext.userLanguage}).`,
+                        },
+                        {
+                            role: "user",
+                            content: JSON.stringify(appointmentContext),
+                        },
+                    ],
+                    temperature: 0.7,
+                    maxTokens: 150,
+                });
+
+                response.message =
+                    contextMessage.choices?.[0]?.message?.content?.toString() ||
+                    "No response generated.";
+            } else {
+                response.action = "collect_info";
+
+                // Let Mistral generate the "no appointments found" message
+                const noAppointmentMessage = await client.chat.complete({
+                    model: "mistral-tiny",
+                    messages: [
+                        {
+                            role: "system",
+                            content: `Generate a friendly message explaining that no appointments were found.
+                            Suggest trying different dates or locations.
+                            Use the user's language (${session.messages[0].content.slice(
+                                0,
+                                50
+                            )}).`,
+                        },
+                        {
+                            role: "user",
+                            content: JSON.stringify({
+                                location: session.appointmentInfo.location,
+                                specialistType:
+                                    session.appointmentInfo.specialistType,
+                                dateRange: session.appointmentInfo.dateRange,
+                            }),
+                        },
+                    ],
+                    temperature: 0.7,
+                    maxTokens: 150,
+                });
+
+                response.message =
+                    noAppointmentMessage.choices?.[0]?.message?.content?.toString() ||
+                    "No appointments found.";
+            }
         }
 
         return response;

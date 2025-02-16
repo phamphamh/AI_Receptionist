@@ -1,6 +1,8 @@
 import { twilioClient } from "../config/twilio";
 import { getMistralResponse } from "../config/mistral";
 import { sessionManager } from "../lib/history";
+import { checkDoctorAvailability } from "../requests/appointmentService";
+import { client } from "../config/mistral";
 
 export const handleMessage = async (
     messageBody: string,
@@ -18,25 +20,93 @@ export const handleMessage = async (
 
         sessionManager.addMessage(From, aiResponse.message, "bot");
 
-        const message = await twilioClient.messages.create({
-            body: aiResponse.message,
-            from: To,
-            to: From,
-        });
-
-        console.log("Message sent successfully:", message.sid);
-
+        // Handle appointment confirmation
         if (
             aiResponse.action === "confirm_appointment" &&
             aiResponse.suggested_appointment
         ) {
-            sessionManager.confirmAppointment(From, {
-                doctorName: aiResponse.suggested_appointment.doctorName,
-                location: aiResponse.suggested_appointment.location,
-                datetime: new Date(aiResponse.suggested_appointment.datetime),
-                specialistType: aiResponse.suggested_appointment.specialistType,
+            const { doctorName, location, datetime, specialistType } =
+                aiResponse.suggested_appointment;
+
+            const availabilityCheck = await checkDoctorAvailability(
+                From,
+                doctorName,
+                location,
+                datetime,
+                specialistType
+            );
+
+            if (availabilityCheck.success) {
+                sessionManager.confirmAppointment(From, {
+                    doctorName,
+                    location,
+                    datetime: new Date(datetime),
+                    specialistType,
+                });
+
+                // Get AI-generated confirmation message
+                const confirmationMessage = await client.chat.complete({
+                    model: "mistral-tiny",
+                    messages: [
+                        {
+                            role: "system",
+                            content:
+                                "Generate a friendly appointment confirmation message. Include all appointment details and remind the patient to arrive 10 minutes early.",
+                        },
+                        {
+                            role: "user",
+                            content: JSON.stringify({
+                                doctor: doctorName,
+                                location,
+                                datetime,
+                                specialty: specialistType,
+                            }),
+                        },
+                    ],
+                    temperature: 0.7,
+                    maxTokens: 150,
+                });
+
+                await twilioClient.messages.create({
+                    body:
+                        confirmationMessage.choices?.[0]?.message?.content?.toString() ||
+                        "Appointment confirmed.",
+                    from: To,
+                    to: From,
+                });
+            } else {
+                // Let AI generate the error message
+                const errorMessage = await client.chat.complete({
+                    model: "mistral-tiny",
+                    messages: [
+                        {
+                            role: "system",
+                            content:
+                                "Generate a polite message explaining that the time slot is no longer available and offer to find another appointment.",
+                        },
+                    ],
+                    temperature: 0.7,
+                    maxTokens: 100,
+                });
+
+                await twilioClient.messages.create({
+                    body:
+                        errorMessage.choices?.[0]?.message?.content?.toString() ||
+                        "Time slot no longer available.",
+                    from: To,
+                    to: From,
+                });
+            }
+        } else {
+            // Send regular response
+            await twilioClient.messages.create({
+                body: aiResponse.message,
+                from: To,
+                to: From,
             });
-        } else if (aiResponse.action === "decline_appointment") {
+        }
+
+        if (aiResponse.action === "decline_appointment") {
             sessionManager.endSession(From);
         }
 
