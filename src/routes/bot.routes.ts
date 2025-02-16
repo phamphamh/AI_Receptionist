@@ -3,6 +3,7 @@ import fileUpload from "express-fileupload";
 import {
     handleDirectMessage,
     handleAudioMessage,
+    getAudioFile,
 } from "../controllers/bot.controller";
 
 const router = express.Router();
@@ -17,5 +18,6 @@ router.use(
 
 router.post("/message", handleDirectMessage);
 router.post("/audio", handleAudioMessage);
+router.get("/speech/:fileName", getAudioFile);
 
 export default router;

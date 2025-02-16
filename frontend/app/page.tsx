@@ -4,11 +4,18 @@ import { useState, FormEvent, useRef } from "react";
 import { useChat } from "../hooks/useChat";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Send } from "lucide-react";
+import { Mic, MicOff, Send, Volume2, VolumeX } from "lucide-react";
 
 export default function Home() {
-    const { messages, isLoading, error, sendMessage, sendAudioMessage } =
-        useChat();
+    const {
+        messages,
+        isLoading,
+        error,
+        isPlaying,
+        sendMessage,
+        sendAudioMessage,
+        playAudioResponse,
+    } = useChat();
     const [inputMessage, setInputMessage] = useState("");
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -89,13 +96,32 @@ export default function Home() {
                             }`}
                         >
                             <div
-                                className={`rounded-lg p-3 max-w-[80%] ${
+                                className={`flex items-center gap-2 rounded-lg p-3 max-w-[80%] ${
                                     message.role === "user"
                                         ? "bg-blue-500 text-white"
                                         : "bg-gray-100"
                                 }`}
                             >
                                 <p className="text-sm">{message.content}</p>
+                                {message.role === "bot" && (
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() =>
+                                            message.speechFile &&
+                                            playAudioResponse(
+                                                message.speechFile
+                                            )
+                                        }
+                                    >
+                                        {isPlaying ? (
+                                            <VolumeX className="h-4 w-4" />
+                                        ) : (
+                                            <Volume2 className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     ))}

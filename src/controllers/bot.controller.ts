@@ -12,7 +12,11 @@ const openai = new OpenAI({
 
 export const handleDirectMessage = async (req: Request, res: Response) => {
     try {
-        const { message, userId } = req.body;
+        const { message, userId, wantsSpeech } = req.body;
+        console.log("\n=== New Message Request ===");
+        console.log("User ID:", userId);
+        console.log("Message:", message);
+        console.log("Wants Speech:", wantsSpeech);
 
         if (!message || !userId) {
             return res.status(400).json({
@@ -27,6 +31,7 @@ export const handleDirectMessage = async (req: Request, res: Response) => {
         sessionManager.addMessage(userId, message, "user");
 
         const aiResponse = await getMistralResponse(userId, message);
+        console.log("AI Response:", aiResponse.message);
 
         sessionManager.addMessage(userId, aiResponse.message, "bot");
 
@@ -44,13 +49,52 @@ export const handleDirectMessage = async (req: Request, res: Response) => {
             sessionManager.endSession(userId);
         }
 
+        let speechData: string | null = null;
+        if (wantsSpeech) {
+            try {
+                console.log("\n=== Generating Speech ===");
+                console.log("Text to convert:", aiResponse.message);
+
+                const audioBuffer = await textToSpeech(aiResponse.message);
+                console.log("Audio buffer size:", audioBuffer.length, "bytes");
+
+                const fileName = `${crypto.randomUUID()}.mp3`;
+                const tempDir = path.join(__dirname, "../../temp");
+                const filePath = path.join(tempDir, fileName);
+
+                console.log("Temp directory:", tempDir);
+                console.log("File path:", filePath);
+
+                if (!fs.existsSync(tempDir)) {
+                    console.log("Creating temp directory");
+                    fs.mkdirSync(tempDir, { recursive: true });
+                }
+
+                await fs.promises.writeFile(filePath, audioBuffer);
+                const stats = fs.statSync(filePath);
+                console.log("File created successfully");
+                console.log("File size:", stats.size, "bytes");
+
+                speechData = fileName;
+                console.log("Speech file name:", fileName);
+            } catch (speechError) {
+                console.error("\n=== Speech Generation Error ===");
+                console.error("Error details:", speechError);
+            }
+        }
+
+        console.log("\n=== Sending Response ===");
+        console.log("Speech data:", speechData);
+
         return res.status(200).json({
             message: aiResponse.message,
             action: aiResponse.action,
             suggested_appointment: aiResponse.suggested_appointment,
+            speechFile: speechData,
         });
     } catch (error) {
-        console.error("Error processing direct message:", error);
+        console.error("\n=== Request Error ===");
+        console.error("Error details:", error);
         return res.status(500).json({ error: "Internal server error" });
     }
 };
@@ -143,5 +187,94 @@ export const handleAudioMessage = async (req: Request, res: Response) => {
     } catch (error) {
         console.error("Error processing audio message:", error);
         return res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+export const textToSpeech = async (text: string): Promise<Buffer> => {
+    try {
+        console.log("\n=== Text to Speech Request ===");
+        console.log("Input text:", text);
+
+        const mp3 = await openai.audio.speech.create({
+            model: "tts-1",
+            voice: "alloy",
+            input: text,
+        });
+
+        const buffer = Buffer.from(await mp3.arrayBuffer());
+        console.log("Generated audio size:", buffer.length, "bytes");
+
+        return buffer;
+    } catch (error) {
+        console.error("\n=== Text to Speech Error ===");
+        console.error("Error details:", error);
+        throw error;
+    }
+};
+
+export const getAudioFile = async (req: Request, res: Response) => {
+    try {
+        const { fileName } = req.params;
+        console.log("\n=== Audio File Request ===");
+        console.log("Requested file:", fileName);
+
+        const filePath = path.join(__dirname, "../../temp", fileName);
+        console.log("Full path:", filePath);
+
+        if (!fs.existsSync(filePath)) {
+            console.log("File not found!");
+            return res.status(404).json({ error: "Audio file not found" });
+        }
+
+        const stat = fs.statSync(filePath);
+        console.log("File stats:", {
+            size: stat.size,
+            created: stat.birthtime,
+            modified: stat.mtime,
+        });
+
+        res.writeHead(200, {
+            "Content-Type": "audio/mpeg",
+            "Content-Length": stat.size,
+            "Accept-Ranges": "bytes",
+        });
+        console.log("Headers set");
+
+        const fileStream = fs.createReadStream(filePath);
+        console.log("File stream created");
+
+        fileStream.on("open", () => {
+            console.log("Stream opened");
+        });
+
+        fileStream.on("data", (chunk) => {
+            console.log("Streaming chunk:", chunk.length, "bytes");
+        });
+
+        fileStream.on("end", () => {
+            console.log("Stream ended");
+            fs.unlink(filePath, (err) => {
+                if (err) {
+                    console.error("Error deleting file:", err);
+                } else {
+                    console.log("File deleted successfully");
+                }
+            });
+        });
+
+        fileStream.on("error", (error) => {
+            console.error("Stream error:", error);
+            if (!res.headersSent) {
+                res.status(500).json({ error: "Error streaming audio file" });
+            }
+        });
+
+        fileStream.pipe(res);
+    } catch (error) {
+        console.error("\n=== Audio Serving Error ===");
+        console.error("Error details:", error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: "Internal server error" });
+        }
     }
 };
