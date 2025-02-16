@@ -1,113 +1,176 @@
-# Sona Backend
+# Sona - Assistant Médical Intelligent
 
-Sona Backend est une application Node.js/TypeScript qui sert de backend pour le projet Sona, intégrant des services de communication via Twilio.
+Sona est une application de prise de rendez-vous médicaux composée de trois parties principales :
 
-## 🚀 Technologies Utilisées
+- Une landing page moderne
+- Un chatbot web intelligent
+- Un backend qui gère la logique métier et l'intégration avec WhatsApp
 
-- Node.js
-- TypeScript
-- Express.js
-- Twilio
-- dotenv (pour la gestion des variables d'environnement)
+## 🚀 Architecture du Projet
+
+Le projet est structuré en trois composants principaux :
+
+```
+sona-backend/
+├── front-end copie/     # Landing page (Next.js)
+├── frontend/           # Chatbot web (Next.js)
+└── src/               # Backend (Node.js/Express)
+```
+
+### Ports par défaut
+
+- Backend : 3000
+- Landing page : 3001
+- Chatbot : 3002
 
 ## 📋 Prérequis
 
-- Node.js (version 14 ou supérieure)
+- Node.js (v14 ou supérieur)
 - npm ou yarn
-- Un compte Twilio avec les identifiants nécessaires
-- ngrok (pour les tests en local)
+- Compte Twilio (pour l'intégration WhatsApp)
+- Compte OpenAI
+- Compte Mistral AI
 
-## 🛠 Installation et Configuration
+## ⚙️ Configuration
 
-1. **Cloner et installer les dépendances**
+1. **Variables d'environnement**
+
+Créez un fichier `.env` à la racine du projet avec la structure suivante :
+
+```env
+# Server Configuration
+PORT=3000
+
+# Twilio Configuration
+TWILIO_ACCOUNT_SID=votre_account_sid
+TWILIO_AUTH_TOKEN=votre_auth_token
+TWILIO_PHONE_NUMBER=whatsapp:+1234567890
+
+# Mistral AI Configuration
+MISTRAL_API_KEY=votre_mistral_api_key
+
+# OpenAI Configuration
+OPENAI_API_KEY=votre_openai_api_key
+```
+
+2. **Installation des dépendances**
+
+Pour le backend :
+
 ```bash
-git clone https://github.com/phamphamh/AI_Receptionist.git
 cd sona-backend
 npm install
 ```
 
-2. **Configuration des variables d'environnement**
-Créez un fichier `.env` à la racine du projet avec :
+Pour la landing page :
+
 ```bash
-PORT=3000
-TWILIO_ACCOUNT_SID=votre_account_sid
-TWILIO_AUTH_TOKEN=votre_auth_token
-TWILIO_PHONE_NUMBER=votre_numero_twilio
+cd "front-end copie"
+npm install
 ```
 
-## 🚀 Lancement en Local
+Pour le chatbot :
 
-1. **Démarrer le serveur**
 ```bash
+cd frontend
+npm install
+```
+
+## 🚀 Lancement
+
+1. **Backend**
+
+```bash
+cd sona-backend
 npm run dev
 ```
 
-2. **Exposer le serveur avec ngrok** (dans un nouveau terminal)
+2. **Landing Page**
+
 ```bash
-ngrok http 3000
+cd "front-end copie"
+npm run dev
 ```
 
-3. **Configuration Twilio**
-- Accédez à la [console Twilio](https://console.twilio.com)
-- Allez dans "Phone Numbers" > Votre numéro
-- Dans la section "Messaging"
-- Configurez "When a message comes in" avec :
-  - URL : `https://votre-url-ngrok/api/sms`
-  - Méthode : POST
+3. **Chatbot**
 
-## 🧪 Test
-
-**Test local avec curl :**
 ```bash
-curl -X POST http://localhost:3000/api/sms \
--H "Content-Type: application/json" \
--d '{"Body": "Bonjour", "From": "+33612345678"}'
+cd frontend
+npm run dev
 ```
 
-## 📁 Structure du Projet
+## 📁 Structure des Répertoires
+
+### Backend (src/)
 
 ```
-sona-backend/
-├── src/
-│   ├── config/
-│   │   └── twilio.ts      # Configuration Twilio
-│   ├── controllers/
-│   │   └── webhook.controller.ts  # Gestion des webhooks
-│   ├── routes/
-│   │   └── webhook.routes.ts      # Définition des routes
-│   ├── services/
-│   │   └── twilio.service.ts      # Logique Twilio
-│   └── app.ts             # Point d'entrée
-├── .env                   # Variables d'environnement
-├── package.json          
-├── tsconfig.json         # Configuration TypeScript
-└── README.md
+src/
+├── config/           # Configuration (Twilio, OpenAI, Mistral)
+├── controllers/      # Contrôleurs
+├── routes/          # Routes API
+├── services/        # Services métier
+└── lib/             # Utilitaires et helpers
 ```
 
-## 🔄 Scripts Disponibles
+### Landing Page (front-end copie/)
 
-- `npm run dev` : Lance le serveur en mode développement
-- `npm run build` : Compile le projet TypeScript
-- `npm start` : Lance le serveur en production
+```
+front-end copie/
+├── app/             # Pages Next.js
+├── components/      # Composants React
+├── lib/             # Utilitaires
+└── public/          # Assets statiques
+```
 
-## 🚧 Fonctionnalités Actuelles
+### Chatbot (frontend/)
 
-- Réception de SMS via webhook Twilio
-- Réponse automatique aux SMS reçus
-- Gestion des erreurs basique
+```
+frontend/
+├── app/             # Pages Next.js
+├── components/      # Composants React
+├── hooks/           # Hooks personnalisés
+└── types/           # Types TypeScript
+```
 
-## 📈 Améliorations Prévues
+## 🔄 Flux de Communication
 
-1. Tests unitaires
-2. Amélioration de la gestion des erreurs
-3. Validation des requêtes
-4. Logs détaillés
-5. Documentation API (Swagger)
+1. **Via WhatsApp**
+
+   - L'utilisateur envoie un message sur WhatsApp
+   - Twilio transmet le message au backend
+   - Le backend utilise Mistral AI pour générer une réponse
+   - La réponse est envoyée à l'utilisateur via WhatsApp
+
+2. **Via le Chatbot Web**
+   - L'utilisateur interagit avec le chatbot
+   - Les messages sont traités par le backend
+   - Les réponses sont générées avec Mistral AI
+   - Support pour les messages texte et audio
+
+## 🛠 Technologies Utilisées
+
+- **Frontend** : Next.js, TypeScript, Tailwind CSS
+- **Backend** : Node.js, Express, TypeScript
+- **IA** : Mistral AI, OpenAI (pour la transcription audio)
+- **Communication** : Twilio (WhatsApp)
+
+## 📝 Fonctionnalités
+
+- Prise de rendez-vous via WhatsApp ou chatbot web
+- Interface utilisateur moderne et responsive
+- Support multilingue
+- Transcription audio vers texte
+- Géolocalisation des cabinets médicaux
+- Gestion intelligente des rendez-vous
+
+## 🤝 Contribution
+
+1. Fork le projet
+2. Créez votre branche (`git checkout -b feature/AmazingFeature`)
+3. Committez vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrez une Pull Request
 
 ## 📄 Licence
 
-ISC
-
-## 👥 Auteur
-
-[Votre nom] 
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
