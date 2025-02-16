@@ -5,13 +5,19 @@ interface Message {
 }
 
 interface AppointmentInfo {
-    location?: string;
     specialistType?: string;
-    dateRange?: {
-        startDate: string;
-        endDate: string;
+    location?: string;
+    date?: string;
+    timeSlot?: {
+        start: number;
+        end: number;
     };
-    missingFields: string[];
+    nextField?:
+        | "specialistType"
+        | "location"
+        | "date"
+        | "timeSlot"
+        | "complete";
 }
 
 interface ConfirmedAppointment {
@@ -26,19 +32,16 @@ interface UserSession {
     id: string;
     phoneNumber: string;
     startedAt: Date;
-    endedAt?: Date;
-    messages: Message[];
     appointmentInfo: AppointmentInfo;
-    confirmedAppointment?: ConfirmedAppointment;
+    isComplete: boolean;
+    messages: Message[];
 }
 
 class SessionManager {
-    private activeSessions: Map<string, UserSession>; // phoneNumber -> session
-    private sessionHistory: UserSession[]; // Completed sessions
+    private activeSessions: Map<string, UserSession>;
 
     constructor() {
         this.activeSessions = new Map();
-        this.sessionHistory = [];
     }
 
     public startNewSession(phoneNumber: string): UserSession {
@@ -46,13 +49,53 @@ class SessionManager {
             id: crypto.randomUUID(),
             phoneNumber,
             startedAt: new Date(),
-            messages: [],
             appointmentInfo: {
-                missingFields: ["location", "specialistType", "dateRange"],
+                nextField: "specialistType",
             },
+            isComplete: false,
+            messages: [],
         };
         this.activeSessions.set(phoneNumber, session);
         return session;
+    }
+
+    public updateSession(
+        phoneNumber: string,
+        update: Partial<AppointmentInfo>
+    ): void {
+        const session = this.activeSessions.get(phoneNumber);
+        if (session) {
+            session.appointmentInfo = {
+                ...session.appointmentInfo,
+                ...update,
+            };
+
+            // Update nextField based on what's missing
+            if (!session.appointmentInfo.specialistType) {
+                session.appointmentInfo.nextField = "specialistType";
+            } else if (!session.appointmentInfo.location) {
+                session.appointmentInfo.nextField = "location";
+            } else if (!session.appointmentInfo.date) {
+                session.appointmentInfo.nextField = "date";
+            } else if (!session.appointmentInfo.timeSlot) {
+                session.appointmentInfo.nextField = "timeSlot";
+            } else {
+                session.appointmentInfo.nextField = "complete";
+                session.isComplete = true;
+            }
+        }
+    }
+
+    public getSession(phoneNumber: string): UserSession | undefined {
+        return this.activeSessions.get(phoneNumber);
+    }
+
+    public endSession(phoneNumber: string): void {
+        this.activeSessions.delete(phoneNumber);
+    }
+
+    public hasActiveSession(phoneNumber: string): boolean {
+        return this.activeSessions.has(phoneNumber);
     }
 
     public addMessage(
@@ -60,90 +103,21 @@ class SessionManager {
         content: string,
         sender: "user" | "bot"
     ): void {
-        let session = this.activeSessions.get(phoneNumber);
+        const session = this.activeSessions.get(phoneNumber);
         if (!session) {
-            session = this.startNewSession(phoneNumber);
+            throw new Error(
+                `No active session found for phone number: ${phoneNumber}`
+            );
         }
 
-        session.messages.push({
+        const message: Message = {
             content,
             sender,
             timestamp: new Date(),
-        });
-    }
+        };
 
-    public updateAppointmentInfo(
-        phoneNumber: string,
-        info: Partial<AppointmentInfo>
-    ): void {
-        const session = this.activeSessions.get(phoneNumber);
-        if (session) {
-            // Update appointment info
-            session.appointmentInfo = {
-                ...session.appointmentInfo,
-                ...info,
-            };
-
-            // Update missing fields
-            const missingFields: string[] = [];
-            if (!session.appointmentInfo.location)
-                missingFields.push("location");
-            if (!session.appointmentInfo.specialistType)
-                missingFields.push("specialistType");
-            if (!session.appointmentInfo.dateRange)
-                missingFields.push("dateRange");
-
-            session.appointmentInfo.missingFields = missingFields;
-        }
-    }
-
-    public confirmAppointment(
-        phoneNumber: string,
-        appointment: Omit<ConfirmedAppointment, "status">
-    ): void {
-        const session = this.activeSessions.get(phoneNumber);
-        if (session) {
-            session.confirmedAppointment = {
-                ...appointment,
-                status: "scheduled",
-            };
-            this.endSession(phoneNumber);
-        }
-    }
-
-    public endSession(phoneNumber: string): void {
-        const session = this.activeSessions.get(phoneNumber);
-        if (session) {
-            session.endedAt = new Date();
-            this.sessionHistory.push(session);
-            this.activeSessions.delete(phoneNumber);
-        }
-    }
-
-    public getActiveSession(phoneNumber: string): UserSession | undefined {
-        return this.activeSessions.get(phoneNumber);
-    }
-
-    public isReadyForSuggestion(phoneNumber: string): boolean {
-        const session = this.activeSessions.get(phoneNumber);
-        return session?.appointmentInfo.missingFields.length === 0 || false;
-    }
-
-    public getMissingFields(phoneNumber: string): string[] {
-        return (
-            this.activeSessions.get(phoneNumber)?.appointmentInfo
-                .missingFields || []
-        );
-    }
-
-    public getUserHistory(phoneNumber: string): UserSession[] {
-        return this.sessionHistory.filter(
-            (session) => session.phoneNumber === phoneNumber
-        );
-    }
-
-    public hasActiveSession(phoneNumber: string): boolean {
-        return this.activeSessions.has(phoneNumber);
+        session.messages.push(message);
+        this.activeSessions.set(phoneNumber, session);
     }
 }
 

@@ -1,10 +1,7 @@
-import { Doctor, AppointmentResult } from "../types/appointment";
-const fs = require("fs");
-const path = require("path");
+import { Doctor } from "../types/appointment";
+import doctorsDataJson from "../doctors_data.json";
 
-// Load doctors database
-const filePath = path.join(__dirname, "../fake_doctors.json");
-const doctorsData: Doctor[] = JSON.parse(fs.readFileSync(filePath, "utf8"));
+const doctorsData = doctorsDataJson as Doctor[];
 
 // Check doctor availability with specialty
 function isDoctorAvailable(
@@ -60,13 +57,15 @@ function findAlternativeAppointments(
     date: string,
     specialty: string
 ): Doctor[] {
-    return doctorsData.filter(
-        (d) =>
-            d.name !== doctorName &&
-            d.city === city &&
-            d.specialty === specialty &&
-            d.slots.includes(date)
-    );
+    return doctorsData
+        .filter(
+            (d) =>
+                d.name !== doctorName &&
+                d.city === city &&
+                d.specialty === specialty &&
+                d.slots.includes(date)
+        )
+        .slice(0, 3); // Limit to 3 alternatives
 }
 
 // Test pour trouver des médecins alternatifs
@@ -125,13 +124,15 @@ function findDoctorsInNearbyCities(
     date: string,
     specialty: string
 ): Doctor[] {
-    return doctorsData.filter(
-        (d) =>
-            d.name !== doctorName &&
-            d.city !== city &&
-            d.specialty === specialty &&
-            d.slots.includes(date)
-    );
+    return doctorsData
+        .filter(
+            (d) =>
+                d.name !== doctorName &&
+                d.city !== city &&
+                d.specialty === specialty &&
+                d.slots.includes(date)
+        )
+        .slice(0, 3); // Limit to 3 nearby doctors
 }
 
 // Test pour trouver des médecins dans des villes voisines

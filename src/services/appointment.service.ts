@@ -1,11 +1,10 @@
+import doctorsData from "../doctors_data.json";
 import {
-    checkDoctorAvailability,
     findAlternatives,
     findDoctorsInNearbyCities,
 } from "../requests/appointmentService";
 import { findTeleconsultation } from "../requests/teleconsultationService";
 import { Doctor } from "../types/appointment";
-import { doctorsData } from "../requests/doctorService";
 
 export interface AppointmentSearchResult {
     type: "direct" | "teleconsultation" | "nearby" | "not_found";
@@ -77,7 +76,7 @@ export async function findAvailableAppointment(
     };
 }
 
-interface TimeSlot {
+export interface TimeSlot {
     doctor: Doctor;
     datetime: string;
     location: string;
@@ -85,97 +84,44 @@ interface TimeSlot {
 
 export function findAvailableTimeSlots(
     specialistType: string,
-    preferredLocation: string,
-    preferredTime: { startHour: number; endHour?: number },
-    startDate: string,
+    location: string,
+    timePreference: { start: number; end: number },
+    date: string,
     maxResults: number = 3
 ): TimeSlot[] {
-    const allDoctors: Doctor[] = doctorsData
-        .filter(
-            (d: Doctor) =>
-                d.specialty.toLowerCase() === specialistType.toLowerCase()
-        )
-        .slice(0, 3);
-
     const slots: TimeSlot[] = [];
-    const startDateTime = new Date(startDate);
-    const endDateTime = new Date(startDateTime);
-    endDateTime.setDate(endDateTime.getDate() + 30);
+    const searchDate = new Date(date);
 
-    allDoctors
-        .filter((d) =>
-            d.city.toLowerCase().includes(preferredLocation.toLowerCase())
-        )
-        .forEach((doctor) => {
-            doctor.slots
-                .filter((slot) => {
-                    const slotDate = new Date(slot);
-                    const hour = slotDate.getHours();
-                    return (
-                        slotDate >= startDateTime &&
-                        slotDate <= endDateTime &&
-                        hour >= preferredTime.startHour &&
-                        (!preferredTime.endHour ||
-                            hour <= preferredTime.endHour)
-                    );
-                })
-                .slice(0, maxResults)
-                .forEach((slot) => {
-                    slots.push({
-                        doctor,
-                        datetime: slot,
-                        location: doctor.city,
-                    });
+    // Filter doctors by specialty and location
+    const matchingDoctors = doctorsData.filter(
+        (d: Doctor) =>
+            d.specialty.toLowerCase() === specialistType.toLowerCase() &&
+            d.city.toLowerCase().includes(location.toLowerCase())
+    );
+
+    // Get available slots for each matching doctor
+    matchingDoctors.forEach((doctor) => {
+        doctor.slots
+            .filter((slot) => {
+                const slotDate = new Date(slot);
+                const hour = slotDate.getHours();
+
+                // Check if slot is on the requested date and within time preference
+                return (
+                    slotDate.toDateString() === searchDate.toDateString() &&
+                    hour >= timePreference.start &&
+                    hour <= timePreference.end
+                );
+            })
+            .slice(0, maxResults)
+            .forEach((slot) => {
+                slots.push({
+                    doctor,
+                    datetime: slot,
+                    location: doctor.city,
                 });
-        });
-
-    // If we don't have enough slots, try nearby areas
-    if (slots.length < maxResults) {
-        const remainingSlots = maxResults - slots.length;
-        const nearbyCities = [
-            ...new Set(
-                doctorsData
-                    .map((d) => d.city)
-                    .filter(
-                        (city) =>
-                            !city
-                                .toLowerCase()
-                                .includes(preferredLocation.toLowerCase())
-                    )
-            ),
-        ].slice(0, 3);
-
-        allDoctors
-            .filter((d) =>
-                nearbyCities.some(
-                    (city) => d.city.toLowerCase() === city.toLowerCase()
-                )
-            )
-            .forEach((doctor) => {
-                if (slots.length >= maxResults) return;
-
-                doctor.slots
-                    .filter((slot) => {
-                        const slotDate = new Date(slot);
-                        const hour = slotDate.getHours();
-                        return (
-                            slotDate >= startDateTime &&
-                            slotDate <= endDateTime &&
-                            hour >= preferredTime.startHour &&
-                            (!preferredTime.endHour ||
-                                hour <= preferredTime.endHour)
-                        );
-                    })
-                    .slice(0, remainingSlots)
-                    .forEach((slot) => {
-                        slots.push({
-                            doctor,
-                            datetime: slot,
-                            location: doctor.city,
-                        });
-                    });
             });
-    }
+    });
 
     return slots.slice(0, maxResults);
 }
