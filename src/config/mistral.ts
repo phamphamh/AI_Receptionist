@@ -34,13 +34,13 @@ const QUESTIONS: Record<string, string> = {
 };
 
 export const getMistralResponse = async (
-    from: string,
+    userId: string,
     message: string
 ): Promise<AIResponse> => {
     try {
-        let session = sessionManager.getSession(from);
+        let session = sessionManager.getSession(userId);
         if (!session) {
-            session = sessionManager.startNewSession(from);
+            session = sessionManager.startNewSession(userId);
             return {
                 message:
                     "Hello! I'll help you book a medical appointment. " +
@@ -91,7 +91,7 @@ export const getMistralResponse = async (
                     })}`;
                 });
 
-                sessionManager.endSession(from);
+                sessionManager.endSession(userId);
                 return {
                     message: `Great! I found ${
                         availableSlots.length
@@ -102,7 +102,7 @@ export const getMistralResponse = async (
                     }).`,
                 };
             } else {
-                sessionManager.endSession(from);
+                sessionManager.endSession(userId);
                 return {
                     message:
                         "I'm sorry, but I couldn't find any available appointments matching your criteria. Would you like to try different dates or times?",
@@ -145,12 +145,12 @@ Focus ONLY on the current field, set others to null. Be strict about extracting 
 
             if (fieldValue) {
                 // Update session with extracted information
-                sessionManager.updateSession(from, {
+                sessionManager.updateSession(userId, {
                     [currentField]: fieldValue,
                 });
 
                 // Get next question based on updated session
-                const updatedSession = sessionManager.getSession(from);
+                const updatedSession = sessionManager.getSession(userId);
                 if (
                     !updatedSession ||
                     !updatedSession.appointmentInfo.nextField
@@ -161,7 +161,7 @@ Focus ONLY on the current field, set others to null. Be strict about extracting 
                 const nextField = updatedSession.appointmentInfo.nextField;
                 if (nextField === "complete") {
                     // Trigger appointment search
-                    return await getMistralResponse(from, "");
+                    return await getMistralResponse(userId, "");
                 }
 
                 return {

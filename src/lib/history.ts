@@ -30,7 +30,8 @@ interface ConfirmedAppointment {
 
 interface UserSession {
     id: string;
-    phoneNumber: string;
+    userId: string;
+    phoneNumber?: string;
     startedAt: Date;
     appointmentInfo: AppointmentInfo;
     isComplete: boolean;
@@ -44,9 +45,10 @@ class SessionManager {
         this.activeSessions = new Map();
     }
 
-    public startNewSession(phoneNumber: string): UserSession {
+    public startNewSession(userId: string, phoneNumber?: string): UserSession {
         const session: UserSession = {
             id: crypto.randomUUID(),
+            userId,
             phoneNumber,
             startedAt: new Date(),
             appointmentInfo: {
@@ -55,15 +57,15 @@ class SessionManager {
             isComplete: false,
             messages: [],
         };
-        this.activeSessions.set(phoneNumber, session);
+        this.activeSessions.set(userId, session);
         return session;
     }
 
     public updateSession(
-        phoneNumber: string,
+        userId: string,
         update: Partial<AppointmentInfo>
     ): void {
-        const session = this.activeSessions.get(phoneNumber);
+        const session = this.activeSessions.get(userId);
         if (session) {
             session.appointmentInfo = {
                 ...session.appointmentInfo,
@@ -86,28 +88,26 @@ class SessionManager {
         }
     }
 
-    public getSession(phoneNumber: string): UserSession | undefined {
-        return this.activeSessions.get(phoneNumber);
+    public getSession(userId: string): UserSession | undefined {
+        return this.activeSessions.get(userId);
     }
 
-    public endSession(phoneNumber: string): void {
-        this.activeSessions.delete(phoneNumber);
+    public endSession(userId: string): void {
+        this.activeSessions.delete(userId);
     }
 
-    public hasActiveSession(phoneNumber: string): boolean {
-        return this.activeSessions.has(phoneNumber);
+    public hasActiveSession(userId: string): boolean {
+        return this.activeSessions.has(userId);
     }
 
     public addMessage(
-        phoneNumber: string,
+        userId: string,
         content: string,
         sender: "user" | "bot"
     ): void {
-        const session = this.activeSessions.get(phoneNumber);
+        const session = this.activeSessions.get(userId);
         if (!session) {
-            throw new Error(
-                `No active session found for phone number: ${phoneNumber}`
-            );
+            throw new Error(`No active session found for user: ${userId}`);
         }
 
         const message: Message = {
@@ -117,7 +117,15 @@ class SessionManager {
         };
 
         session.messages.push(message);
-        this.activeSessions.set(phoneNumber, session);
+        this.activeSessions.set(userId, session);
+    }
+
+    public getSessionByPhoneNumber(
+        phoneNumber: string
+    ): UserSession | undefined {
+        return Array.from(this.activeSessions.values()).find(
+            (session) => session.phoneNumber === phoneNumber
+        );
     }
 }
 
