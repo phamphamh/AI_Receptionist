@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-    title: "Medical Chat Bot",
-    description: "A medical appointment chat bot interface",
+    title: "Sona - Medical Assistant",
+    description: "Your personal AI medical assistant",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en">
-            <body>{children}</body>
+            <body className="bg-gray-50">{children}</body>
         </html>
     );
 }

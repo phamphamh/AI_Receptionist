@@ -63,11 +63,11 @@ export default function VoicePage() {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-            <div className="p-8 bg-white rounded-2xl shadow-xl w-80">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+            <div className="p-8 bg-white rounded-3xl shadow-xl w-full max-w-sm">
                 <div className="flex flex-col items-center gap-6">
                     <h1 className="text-2xl font-bold text-gray-900">
-                        Voice Assistant
+                        Sona Voice
                     </h1>
 
                     <div className="relative">
@@ -79,7 +79,7 @@ export default function VoicePage() {
                             className={`w-24 h-24 rounded-full transition-all ${
                                 isRecording
                                     ? "bg-red-500 hover:bg-red-600 animate-pulse"
-                                    : "bg-blue-500 hover:bg-blue-600"
+                                    : "bg-[#85FA99] hover:bg-[#76e088] text-gray-800"
                             }`}
                             disabled={isLoading}
                         >
@@ -94,7 +94,7 @@ export default function VoicePage() {
                         <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-48">
                             <SoundWave
                                 isAnimating={isRecording}
-                                color="#3B82F6"
+                                color="#85FA99"
                             />
                         </div>
                     </div>
