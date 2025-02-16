@@ -43,7 +43,7 @@ export const handleMessage = async (
             });
 
             await twilioClient.messages.create({
-                contentSid: "HX7dba1e0e532b799f99d4bd895c9b56a0",
+                contentSid: "HX6c63cadbb80d54d62fd2e293845a4e09",
                 contentVariables: JSON.stringify({
                     1: aiResponse.suggested_appointment.doctorName,
                     2: appointmentDate,
