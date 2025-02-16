@@ -46,11 +46,13 @@ export const getMistralResponse = async (
         const session = sessionManager.getActiveSession(from);
         const missingFields = sessionManager.getMissingFields(from);
 
+        sessionManager.addMessage(from, message, "user");
+
         const chatResponse = await client.chat.complete({
             model: "mistral-tiny",
             messages: [
                 {
-                    role: "system",
+                    role: "system" as const,
                     content: `You are Sona, a professional and friendly virtual healthcare assistant specialized in booking medical appointments.
                     that only speaks in English.
 
@@ -101,10 +103,13 @@ Guidelines:
 `,
                 },
                 ...(session?.messages.map((msg) => ({
-                    role: "user" as const,
+                    role:
+                        msg.sender === "user"
+                            ? ("user" as const)
+                            : ("assistant" as const),
                     content: msg.content,
                 })) || []),
-                { role: "user", content: message },
+                { role: "user" as const, content: message },
             ],
             responseFormat: { type: "json_object" },
             temperature: 0.7,
@@ -160,13 +165,19 @@ Guidelines:
             response.message = `Great! I found an available appointment with ${response.suggested_appointment.doctorName} at ${response.suggested_appointment.location} tomorrow. Would you like me to book this for you?`;
         }
 
+        sessionManager.addMessage(from, response.message, "bot");
+
         return response;
     } catch (error) {
         console.error("Error calling Mistral API:", error);
-        return {
+        const errorResponse: AIResponse = {
             action: "error",
             message:
                 "I apologize, I'm experiencing technical difficulties. Please try again later.",
         };
+
+        sessionManager.addMessage(from, errorResponse.message, "bot");
+
+        return errorResponse;
     }
 };
